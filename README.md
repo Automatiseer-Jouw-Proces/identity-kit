@@ -72,7 +72,7 @@ React integratie
 
 ```tsx
 // app/layout.tsx
-import { IdentityProvider } from "@automatiseerjouwproces/identity-kit";
+import { IdentityProvider } from "@automatiseerjouwproces/identity-kit/react";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -87,7 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ```tsx
 // app/login/page.tsx
-import { LoginPage } from "@automatiseerjouwproces/identity-kit";
+import { LoginPage } from "@automatiseerjouwproces/identity-kit/react";
 
 export default function Login() {
   return <LoginPage />;
