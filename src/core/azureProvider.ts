@@ -103,7 +103,7 @@ export class AzureAuthProvider implements AuthProvider {
     return payload;
   }
 
-  mapToUser(validated: ValidatedIdToken): User {
+  async mapToUser(validated: ValidatedIdToken, tokens?: ProviderCallbackResult): Promise<User> {
     const name = typeof validated.name === "string" ? validated.name : null;
     const email =
       typeof validated.email === "string"
@@ -112,12 +112,43 @@ export class AzureAuthProvider implements AuthProvider {
           ? validated.preferred_username
           : null;
 
+    const baseRoles = normalizeStringArray(validated.roles) ?? [];
+    const baseGroups = Array.isArray(validated.groups) ? validated.groups : undefined;
+    const roles = new Set<string>(baseRoles);
+    const groups = baseGroups ? new Set<string>(baseGroups) : new Set<string>();
+
+    const shouldFetchAppRoles =
+      !!this.config.azure.servicePrincipalId &&
+      tokens?.accessToken &&
+      this.config.azure.fetchAppRolesFromGraph !== false;
+
+    if (shouldFetchAppRoles && tokens?.accessToken) {
+      const appRoles = await fetchAppRolesFromGraph(
+        tokens.accessToken,
+        this.config.azure.servicePrincipalId as string,
+        this.config.azure.roleMapping,
+      );
+      appRoles.forEach((role) => roles.add(role));
+
+      if (roles.size === 0 && this.config.azure.groupRoleMapping) {
+        const groupResult = await fetchGroupRolesFromGraph(
+          tokens.accessToken,
+          this.config.azure.groupRoleMapping,
+        );
+        groupResult.roles.forEach((role) => roles.add(role));
+        groupResult.groups.forEach((group) => groups.add(group));
+      }
+    }
+
+    const resolvedRoles = roles.size > 0 ? Array.from(roles) : undefined;
+    const resolvedGroups = groups.size > 0 ? Array.from(groups) : undefined;
+
     return {
       id: validated.sub,
       name,
       email,
-      roles: normalizeStringArray(validated.roles),
-      groups: Array.isArray(validated.groups) ? validated.groups : undefined,
+      roles: resolvedRoles,
+      groups: resolvedGroups,
     };
   }
 }
@@ -131,4 +162,64 @@ function normalizeStringArray(value: unknown): string[] | undefined {
     return [value];
   }
   return undefined;
+}
+
+async function fetchAppRolesFromGraph(
+  accessToken: string,
+  servicePrincipalId: string,
+  roleMapping?: Record<string, string>,
+): Promise<string[]> {
+  try {
+    const response = await fetch("https://graph.microsoft.com/v1.0/me/appRoleAssignments", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return [];
+    const data = (await response.json()) as { value?: Array<{ appRoleId?: string; resourceId?: string }> };
+    const roles = (data.value ?? [])
+      .filter((assignment) => !servicePrincipalId || assignment.resourceId === servicePrincipalId)
+      .map((assignment) => mapRole(assignment.appRoleId, roleMapping))
+      .filter((role): role is string => !!role);
+    return Array.from(new Set(roles));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchGroupRolesFromGraph(
+  accessToken: string,
+  groupRoleMapping: Record<string, string>,
+): Promise<{ roles: string[]; groups: string[] }> {
+  try {
+    const response = await fetch(
+      "https://graph.microsoft.com/v1.0/me/transitiveMemberOf/microsoft.graph.group?$select=displayName,id",
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (!response.ok) return { roles: [], groups: [] };
+    const data = (await response.json()) as { value?: Array<{ displayName?: string; id?: string }> };
+    const groups = (data.value ?? [])
+      .map((group) => group.displayName || group.id)
+      .filter((value): value is string => !!value);
+
+    const roles = groups
+      .map((groupName) => {
+        for (const [key, mappedRole] of Object.entries(groupRoleMapping)) {
+          if (groupName.includes(key)) {
+            return mappedRole;
+          }
+        }
+        return null;
+      })
+      .filter((role): role is string => !!role);
+
+    return { roles: Array.from(new Set(roles)), groups };
+  } catch {
+    return { roles: [], groups: [] };
+  }
+}
+
+function mapRole(appRoleId: string | undefined, roleMapping?: Record<string, string>): string | null {
+  if (!appRoleId) return null;
+  return roleMapping?.[appRoleId] ?? appRoleId;
 }

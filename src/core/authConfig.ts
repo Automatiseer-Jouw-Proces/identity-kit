@@ -6,6 +6,23 @@ export type AzureAuthConfig = {
   clientSecret: string;
   redirectUri: string;
   scopes?: string[];
+  /**
+   * Optional: service principal object ID (Enterprise App) if you need it for downstream integrations.
+   */
+  servicePrincipalId?: string;
+  /**
+   * Optional mapping from Azure app role IDs/names to your app-specific role names.
+   */
+  roleMapping?: Record<string, string>;
+  /**
+   * Optional mapping from Azure AD group display names (substring match) to roles when no app roles are present.
+   */
+  groupRoleMapping?: Record<string, string>;
+  /**
+   * Toggle fetching app role assignments from Microsoft Graph. Requires access token with proper scopes.
+   * Default: true when servicePrincipalId is present.
+   */
+  fetchAppRolesFromGraph?: boolean;
 };
 
 export type AuthConfig = {

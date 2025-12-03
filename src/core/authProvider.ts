@@ -32,7 +32,7 @@ export interface AuthProvider {
   getAuthorizationUrl(state: string, nonce: string): string;
   handleCallback(params: ProviderCallbackParams): Promise<ProviderCallbackResult>;
   validateIdToken(idToken: string, nonce: string): Promise<ValidatedIdToken>;
-  mapToUser(validated: ValidatedIdToken): User;
+  mapToUser(validated: ValidatedIdToken, tokens?: ProviderCallbackResult): Promise<User> | User;
 }
 
 export function createAuthProvider(config: AuthConfig): AuthProvider {

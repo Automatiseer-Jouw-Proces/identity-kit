@@ -104,7 +104,7 @@ export function createAppRouterHandlers(config: AuthConfig): AppRouterHandlers {
       try {
         const callbackResult = await provider.handleCallback({ code, state });
         const validatedToken = await provider.validateIdToken(callbackResult.idToken, nonce);
-        const user = provider.mapToUser(validatedToken);
+        const user = await provider.mapToUser(validatedToken, callbackResult);
         const sessionCookie = await createSessionCookie(user, normalizedConfig);
         const redirectCookie = cookies[REDIRECT_COOKIE_NAME];
 

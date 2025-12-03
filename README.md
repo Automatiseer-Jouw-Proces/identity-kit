@@ -26,6 +26,17 @@ export const authConfig = createAuthConfig({
     clientSecret: process.env.AZURE_CLIENT_SECRET ?? "",
     redirectUri: `${process.env.APP_ORIGIN}/api/auth/callback`,
     scopes: ["openid", "profile", "email"],
+    // Optioneel: service principal (Enterprise App) object ID als je die elders nodig hebt
+    servicePrincipalId: process.env.AZURE_AD_SERVICE_PRINCIPAL_ID,
+    // Optioneel: map Azure app role IDs/names → app-roles, en group-namen → app-roles (fallback)
+    roleMapping: {
+      // "00000000-0000-0000-0000-000000000000": "ADMIN",
+    },
+    groupRoleMapping: {
+      // "MyApp-Admin": "ADMIN",
+    },
+    // Zet op false als je geen Graph calls voor appRoleAssignments wilt doen
+    fetchAppRolesFromGraph: true,
   },
 });
 ```
@@ -118,3 +129,4 @@ Belangrijk
 - Gebruik altijd een sterk `AJP_IDENTITY_JWT_SECRET`.
 - De React-provider stuurt je naar `/api/auth/login` en `/api/auth/logout`; zorg dat deze routes bestaan.
 - De `sessionHandler` geeft `{ user }` terug voor de client-side status; voeg deze route toe.
+- Als je app-roles via Graph wilt lezen, zorg dat je scopes toegang geven (bijv. `Directory.Read.All`/`AppRoleAssignment.Read.All`) en vul `servicePrincipalId` + optionele mappings in.
